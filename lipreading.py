@@ -16,32 +16,9 @@ from torch.nn import functional as F
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from glob import glob
-
-def get_data():
-    if not os.path.exists('data'):
-        url = 'https://drive.google.com/uc?id=1YlvpDLix3S-U8fd-gqRwPcWXAXm8JwjL'
-        output = 'data.zip'
-        gdown.download(url, output, quiet=False)
-        gdown.extractall('data.zip')
-
-def load_video(path: str) -> List[float]:
-    cap = cv2.VideoCapture(path)
-    frames = []
-
-    for _ in range(int(cap.get(cv2.CAP_PROP_FRAME_COUNT))):
-        ret, frame = cap.read()
-        frame = torch.from_numpy(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
-        frame = frame[190:236, 80:220]
-        frames.append(frame.numpy())
-
-    cap.release()
-
-    frames = np.array(frames)
-    mean = np.mean(frames)
-    std = np.std(frames, dtype=np.float32)
-    frames = (frames - mean) / std
-
-    return torch.from_numpy(frames)
+from model import CustomModel
+from API import dataloader
+from API.recorder import Recorder
 
 # We'll be predicting character by character
 vocab = [x for x in "abcdefghijklmnopqrstuvwxyz'?!123456789 "]
@@ -93,7 +70,7 @@ def load_data(path: str):
     # file_name = path.split('\\')[-1].split('.')[0]
     video_path = os.path.join('data','s1',f'{file_name}.mpg')
     alignment_path = os.path.join('data','alignments','s1',f'{file_name}.align')
-    frames = load_video(video_path)
+    frames = dataloader.load_video(video_path)
     frames = padding(frames,75)
     alignments = load_alignments(alignment_path)
 
@@ -118,61 +95,6 @@ class CustomDataset(Dataset):
         data, label = load_data(path)
         return data, label
 
-class CustomModel(nn.Module):
-    def __init__(self, vocab_size):
-        super(CustomModel, self).__init__()
-
-        self.conv1 = nn.Conv3d(1, 128, kernel_size=(3, 3, 3), padding=(1, 1, 1))
-        self.relu1 = nn.ReLU()
-        self.pool1 = nn.MaxPool3d(kernel_size=(1, 2, 2))
-
-        self.conv2 = nn.Conv3d(128, 256, kernel_size=(3, 3, 3), padding=(1, 1, 1))
-        self.relu2 = nn.ReLU()
-        self.pool2 = nn.MaxPool3d(kernel_size=(1, 2, 2))
-
-        self.conv3 = nn.Conv3d(256, 75, kernel_size=(3, 3, 3), padding=(1, 1, 1))
-        self.relu3 = nn.ReLU()
-        self.pool3 = nn.MaxPool3d(kernel_size=(1, 2, 2))
-
-        self.flatten = nn.Flatten()
-        self.time_dist = nn.Sequential(nn.Linear(75 * 5 * 17, 128), nn.ReLU())
-
-        self.lstm1 = nn.LSTM(128, 128, bidirectional=True)
-        self.dropout1 = nn.Dropout(0.5)
-
-        self.lstm2 = nn.LSTM(256, 128, bidirectional=True)
-        self.dropout2 = nn.Dropout(0.5)
-
-        self.dense = nn.Linear(256, vocab_size)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.relu1(x)
-        x = self.pool1(x)
-
-        x = self.conv2(x)
-        x = self.relu2(x)
-        x = self.pool2(x)
-
-        x = self.conv3(x)
-        x = self.relu3(x)
-        x = self.pool3(x)
-
-        # x = self.flatten(x)
-        size = x.size()
-        x = x.view(size[0], size[1], -1)
-        x = self.time_dist(x)
-
-        x, _ = self.lstm1(x.permute(1,0,2))
-
-        x = self.dropout1(x)
-
-        x, _ = self.lstm2(x)
-        x = self.dropout2(x)
-
-        x = self.dense(x)
-
-        return x
 
 class CTCLoss(nn.Module):
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -212,7 +134,7 @@ def execute():
 
     all_file_paths = glob('./data/s1/*.mpg')
     # Taking half dataset for now
-    file_paths = all_file_paths[:500]
+    file_paths = all_file_paths[:12]
     dataset = CustomDataset(file_paths)
 
     train_size = int(0.9 * len(dataset))
@@ -279,13 +201,18 @@ def execute():
     example_callback = ProduceExampleCallback(test_dataset, num_to_char)
 
     # Training loop
-    num_epochs = 1
+    num_epochs = 5
     model.to(device)
+    recorder = Recorder(verbose=True)
+    best_model_path = 'results' + '/' + 'checkpoint.pth'
 
     for epoch in range(num_epochs):
         model.train()
         total_train_loss = 0.0
 
+        if os.path.isfile(best_model_path):
+            print("Loaded saved path")
+            model.load_state_dict(torch.load(best_model_path))
         for data in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}"):
             inputs, targets = data[0].to(device), data[1].to(device)
 
@@ -326,14 +253,16 @@ def execute():
                 loss = ctc_loss(log_probs, targets, input_lengths, target_lengths)
                 total_valid_loss += loss.item()
 
+        recorder(total_valid_loss, model, 'results')
         avg_valid_loss = total_valid_loss / len(valid_loader)
         print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {avg_valid_loss:.4f}")
 
         example_callback.on_epoch_end(epoch, model, device)
+    model.load_state_dict(torch.load(best_model_path))
 
 
 
 if __name__ == "__main__":
     print("got into main")
-    get_data()
+    dataloader.get_data()
     execute()
