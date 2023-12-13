@@ -133,9 +133,9 @@ def execute():
     ''.join(num_to_char(alignments.numpy().tolist()))
 
     all_file_paths = glob('./data/s1/*.mpg')
-    # Taking half dataset for now
-    file_paths = all_file_paths[:12]
-    dataset = CustomDataset(file_paths)
+    #file_paths = all_file_paths[:500]
+    #dataset = CustomDataset(file_paths)
+    dataset = CustomDataset(all_file_paths)
 
     train_size = int(0.9 * len(dataset))
     valid_size = int(0.09 * len(dataset))
@@ -192,7 +192,10 @@ def execute():
 
 
     # Assume Adam optimizer and dataset loaders `train_loader` and `test_loader` are defined
-    optimizer = optim.Adam(model.parameters(), lr=0.0001)
+    #optimizer = optim.Adam(model.parameters(), lr=0.0001)
+    #scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1.0 if epoch < 30 else torch.exp(torch.tensor(-0.1)))
+    
+    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)  # Add weight_decay for L2 regularization
     scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 1.0 if epoch < 30 else torch.exp(torch.tensor(-0.1)))
 
     ctc_loss = CTCLoss()
@@ -253,11 +256,12 @@ def execute():
                 loss = ctc_loss(log_probs, targets, input_lengths, target_lengths)
                 total_valid_loss += loss.item()
 
-        recorder(total_valid_loss, model, 'results')
+        recorder(total_train_loss, total_valid_loss, model, 'results')
         avg_valid_loss = total_valid_loss / len(valid_loader)
         print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {avg_valid_loss:.4f}")
 
         example_callback.on_epoch_end(epoch, model, device)
+    recorder.plot_losses('converegence_plots.png')
     model.load_state_dict(torch.load(best_model_path))
 
 
