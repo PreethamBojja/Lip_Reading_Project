@@ -16,7 +16,7 @@ from torch.nn import functional as F
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from glob import glob
-from model import CustomModel
+from models import CustomModel1,CustomModel2
 from API import dataloader
 from API.recorder import Recorder
 
@@ -120,7 +120,7 @@ class ProduceExampleCallback:
             print('Prediction:', prediction)
             print('~' * 100)
 
-def execute():
+def execute(use_gru=False):
     print("Got into execute")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     test_path = './data/s1/bbal6n.mpg'
@@ -161,7 +161,7 @@ def execute():
     val[0][0].shape
 
     vocab_size = len(vocab)+1
-    model = CustomModel(vocab_size)
+    model = CustomModel1(vocab_size) if not use_gru else CustomModel2(vocab_size)
 
     print(model)
     summary(model, input_size=(1, 1, 75, 46, 140))
@@ -171,7 +171,7 @@ def execute():
 
     model = model.float()
     for module in model.children():
-        if isinstance(module, nn.LSTM):
+        if isinstance(module, (nn.LSTM, nn.GRU)):
             for param_name, param in module.named_parameters():
                 if param.dtype == torch.bool:
                     module.param.data = module.param.data.float()
@@ -206,8 +206,8 @@ def execute():
     # Training loop
     num_epochs = 5
     model.to(device)
-    recorder = Recorder(verbose=True)
-    best_model_path = 'results' + '/' + 'checkpoint.pth'
+    recorder = Recorder(verbose=True,use_gru=use_gru)
+    best_model_path = 'results/' + ('checkpoint.pth' if not use_gru else 'checkpoint2.pth')
 
     for epoch in range(num_epochs):
         model.train()

@@ -4,13 +4,14 @@ import torch
 import matplotlib.pyplot as plt
 
 class Recorder:
-    def __init__(self, verbose=False, delta=0):
+    def __init__(self, verbose=False, delta=0, use_gru=False):
         self.verbose = verbose
         self.best_score = None
         self.val_loss_min = np.Inf
         self.delta = delta
         self.train_losses = []
         self.vali_losses = []
+        self.use_gru = use_gru
 
     def __call__(self, train_loss, val_loss, model, path):
         self.train_losses.append(train_loss)
@@ -29,8 +30,7 @@ class Recorder:
             os.makedirs(path)
         if self.verbose:
             print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
-        print( path+'/'+'checkpoint.pth')
-        torch.save(model.state_dict(), path+'/'+'checkpoint.pth')
+        torch.save(model.state_dict(), path + '/' + ('checkpoint2.pth' if self.use_gru else 'checkpoint.pth'))
         self.val_loss_min = val_loss
 
     def plot_losses(self,save_path):
