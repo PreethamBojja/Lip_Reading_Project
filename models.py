@@ -21,9 +21,9 @@ class CustomModel1(nn.Module):
         self.pool3 = nn.MaxPool3d(kernel_size=(1, 2, 2))
 
         self.flatten = nn.Flatten()
-        self.time_dist = nn.Sequential(nn.Linear(75 * 5 * 17, 128), nn.ReLU())
+        # self.time_dist = nn.Sequential(nn.Linear(75 * 5 * 17, 128), nn.ReLU())
 
-        self.lstm1 = nn.LSTM(128, 128, bidirectional=True)
+        self.lstm1 = nn.LSTM(6375, 128, bidirectional=True)
         self.dropout1 = nn.Dropout(0.5)
 
         self.lstm2 = nn.LSTM(256, 128, bidirectional=True)
@@ -46,8 +46,8 @@ class CustomModel1(nn.Module):
 
         # x = self.flatten(x)
         size = x.size()
-        x = x.view(size[0], size[1], -1)
-        x = self.time_dist(x)
+        x = x.view(size[0], size[2], -1)
+        # x = self.time_dist(x)
 
         x, _ = self.lstm1(x.permute(1,0,2))
 

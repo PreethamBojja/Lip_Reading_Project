@@ -95,6 +95,24 @@ class CustomDataset(Dataset):
         data, label = load_data(path)
         return data, label
 
+def greedy_ctc_decode(yhat, input_lengths):
+    _, max_probs = torch.max(yhat, 2)
+    decoded_sequences = []
+
+    for i in range(max_probs.shape[1]):
+        raw_sequence = max_probs[:, i]
+        length = input_lengths[i]
+        decoded_sequence = torch.Tensor()
+        last_elem = None
+        for j in range(length):
+            if raw_sequence[j] != last_elem:
+                decoded_sequence = torch.cat((decoded_sequence, torch.tensor([raw_sequence[j].item()])))
+                last_elem = raw_sequence[j]
+
+        decoded_sequences.append(decoded_sequence)
+    decoded_sequences_tensor = torch.stack(decoded_sequences)
+
+    return decoded_sequences_tensor
 
 class CTCLoss(nn.Module):
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -113,9 +131,10 @@ class ProduceExampleCallback:
             inputs = inputs.permute(3, 0, 1, 2).unsqueeze(0).float()
             outputs = model(inputs)
             log_probs = F.log_softmax(outputs, dim=2)
-            argmax_result = torch.argmax(log_probs, dim=-1, keepdim=True)
+            ctc_decode_result = greedy_ctc_decode(log_probs, [40])
+            ctc_decode_result = torch.round(ctc_decode_result).long()
             original = ''.join(self.num_to_char_fn(value) for value in targets.cpu().numpy().tolist())
-            prediction = ''.join(self.num_to_char_fn(value) for value in argmax_result.cpu().squeeze(-1).squeeze(-1).numpy().tolist())
+            prediction = ''.join(num_to_char(value) for value in ctc_decode_result.cpu().squeeze(0).numpy().tolist())
             print('Original:', original)
             print('Prediction:', prediction)
             print('~' * 100)
