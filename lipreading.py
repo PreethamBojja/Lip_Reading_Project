@@ -114,6 +114,36 @@ def greedy_ctc_decode(yhat, input_lengths):
 
     return decoded_sequences_tensor
 
+def dp_ctc_decode(yhat, input_lengths):
+    _, max_probs = torch.max(yhat, 2)
+    decoded_sequences = []
+
+    for i in range(max_probs.shape[1]):
+        raw_sequence = max_probs[:, i]
+        length = input_lengths[i]
+        dp_matrix = torch.zeros((length + 1, 40))
+        dp_matrix[0, 0] = 1.0
+        for t in range(1, length + 1):
+            for c in range(40):
+                dp_matrix[t, c] = dp_matrix[t - 1, c]
+                if t > 1 and raw_sequence[t - 1] != c and raw_sequence[t - 1] != raw_sequence[t - 2]:
+                    dp_matrix[t, c] += dp_matrix[t - 2, c]
+                  
+        decoded_sequence = torch.tensor([], dtype=torch.long)
+        t = length
+        c = 0
+        while t > 0:
+            if t == 1 or (raw_sequence[t - 1] != c and raw_sequence[t - 1] != raw_sequence[t - 2]):
+                decoded_sequence = torch.cat((decoded_sequence, torch.tensor([raw_sequence[t - 1].item()])))
+                c = raw_sequence[t - 1].item()
+                t -= 1
+            else:
+                t -= 2
+        decoded_sequences.append(decoded_sequence.flip(0))
+
+    decoded_sequences_tensor = torch.nn.utils.rnn.pad_sequence(decoded_sequences, batch_first=True)
+    return decoded_sequences_tensor
+  
 class CTCLoss(nn.Module):
     def forward(self, log_probs, targets, input_lengths, target_lengths):
         return F.ctc_loss(log_probs, targets, input_lengths, target_lengths, blank=0, reduction='mean')
