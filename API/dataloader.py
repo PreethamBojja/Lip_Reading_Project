@@ -8,7 +8,7 @@ import dlib
 
 def get_data():
     if not os.path.exists('data'):
-        url = 'https://drive.google.com/uc?id=1YlvpDLix3S-U8fd-gqRwPcWXAXm8JwjL'
+        url = 'https://drive.google.com/u/1/uc?id=173NlesZaWfaG1atByzDCKL0Zi0lNzcxG'
         output = 'data.zip'
         gdown.download(url, output, quiet=False)
         gdown.extractall('data.zip')
