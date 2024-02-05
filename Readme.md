@@ -4,6 +4,10 @@
 
 The goal of this project is to predict sentences through lip reading, utilizing the GRID dataset.
 
+https://github.com/rahul-m-patel/Lip_Reading_Project/assets/44569635/17c6f01f-b054-499c-9597-cb2d92ce3c2f
+
+
+
 ## Project Overview
 
 ### 1. Frame Cropping to Focus on the Mouth Region
