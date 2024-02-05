@@ -4,7 +4,9 @@
 
 The goal of this project is to predict sentences through lip reading, utilizing the GRID dataset.
 
-![Demo](https://github.com/rahul-m-patel/Lip_Reading_Project/raw/main/images/demo.mp4)
+https://github.com/rahul-m-patel/Lip_Reading_Project/assets/44569635/17c6f01f-b054-499c-9597-cb2d92ce3c2f
+
+
 
 ## Project Overview
 
